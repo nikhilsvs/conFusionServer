@@ -9,11 +9,18 @@ var usersRouter = require('./routes/users');
 var dishRouter = require('./routes/disheRouter');
 var leadersRouter = require('./routes/leadersRouter');
 var promotionsRouter = require('./routes/promotionsRouter');
-
+var session = require('express-session');
+var passport = require('passport');
+var authenticate = require('./authenticate');
+var config = reuiqre('./config');
+var uploadRouter = require('./routes/uploadRouter');
+var FileStore = require('session-file-store')(session);
+var cors = require('cors');
+var favRouter = require('./routes/favouriteRouter');
 
 const Dishes = require('./models/dishes');
 
-const url = 'mongodb://localhost:27017/conFusion';
+const url = config.mongoUrl;
 const connect = mongoose.connect(url);
 
 connect.then((db) => {
@@ -24,6 +31,15 @@ connect.then((db) => {
 
 var app = express();
 
+app.all('*',(req,res,next)=>{
+  if(req.secure){
+    return next();
+  }
+  else{
+    res.redirect(307,'https://'+req.hostname+':' + app.get('secPort') + req.url);
+  }
+});
+
 
 
 // view engine setup
@@ -33,44 +49,23 @@ app.set('view engine', 'jade');
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
+//app.use(cookieParser('12345-67890-09876-54321'));
 
-function auth(req,res,next){
-  console.log(req.headers);
-
-  var authHeader = req.headers.authorization;
-
-  if(!authHeader){
-    var err = new Error('You are Not Authentucated!');
-    res.setHeader('WWW-Authenticate','Basic');
-    err.status = 401;
-    return next(err);
-  }
-  var auth = new Buffer(authHeader.split(' ')[1],'base64').toString().split(':');
-  var username = auth[0];
-  var password = auth[1];
-
-  if(username === 'admin' && password === 'password'){
-    next();
-  }
-  else{
-    var err = new Error('You are Not Authentucated!');
-    res.setHeader('WWW-Authenticate','Basic');
-    err.status = 401;
-    return next(err);
-  }
-}
-
-app.use(auth);
-
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(passport.initialize());
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+
+
 app.use('/dishes',dishRouter);
 app.use('/promotions',promotionsRouter);
 app.use('/leaders',leadersRouter);
-
+app.use('/imageUpload',uploadRouter);
+app.use('/favourites',favRouter);
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
   next(createError(404));
